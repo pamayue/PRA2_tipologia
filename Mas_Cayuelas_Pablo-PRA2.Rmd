@@ -1,0 +1,606 @@
+---
+title: "Mas_Cayuelas_Pablo-PRA2"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+## Alumno: Pablo Mas Cayuelas
+
+# 1. Descripción del dataset
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+```
+
+ El conjunto de datos seleccionado corresponde al censo de adultos de Estados Unidos. Es un repositorio de más de 48000 entradas del año 1994, que nos da información tanto económica como social de los individuos de la muestra, como por ejemplo su raza, su nivel de estudios o los ingresos de los mismos. Así, la base de datos nos resultará útil para realizar predicciones sobre los ingresos que va a tener un individuo con unas característias dadas, o bien para ver qué influencia tiene una característica concreta en los ingresos del individuo. La base de datos ha sido escogida de la web "kaggle.com" (enlace: https://www.kaggle.com/serpilturanyksel/adult-income). El fichero adjunto se llama "adult11.csv".
+ 
+ 
+ Los atributos de nuestra base de datos son los siguientes:
+ 
+* age: la edad de un individuo. Es un número natural.
+
+* workclass: término para presentar la situación laboral del individuo. Posibles valores: Private, Self-emp-not-inc, Self-emp-inc, Federal-gov, Local-gov, State-gov,Without-pay, Never-worked.
+
+* fnlwgt: peso final. Es el número de personas que el censo cree que la entrada representa. Número natural.
+
+* education: nivel de educación más alto alcanzado por el individuo. Posibles valores: Bachelors, Somecollege, 11th, HS-grad, Prof-school, Assoc-acdm, Assoc-voc, 9th, 7th-8th, 12th, Masters, 1st-4th, 10th, Doctorate, 5th-6th, Preschool.
+
+* education-num: el nivel educativo más alto alcanzado en forma numérica. Número natural.
+
+* marital-status: estado civil de un individuo. Posibles valores: Married-civ-spouse, Divorced, Never-married, Separated, Widowed, Married-spouse-absent, Married-AF-spouse.
+
+* occupation: trabajo del individuo. Posibles valores: Tech-support, Craft-repair, Other-service, Sales, Exec-managerial,Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm-clerical,Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv,Armed-Forces.
+
+* relationship: tipo de relación sentimental del individuo. Posibles valores: Wife, Own-child, Husband, Not-in-family, Other-relative, Unmarried.
+
+* race: raza del individuo. Posibles valores: White, ASian-Pac-Islander, Amer-Indian-Eskimo, Other, Black.
+
+* sex: sexo biológico del individuo. Posibles valores: Male, Female.
+
+* capital-gain: ganancias del individuo. Número natural.
+
+* capital-loss: pérdidas del individuo. Número natural.
+
+* hours-per-week: horas trabajadas a la semana. Número natural.
+
+* native-contry: país de origen del individuo. Posibles valores: United-States, Cambodia, England, Puerto-Rico, Canada, Germany,Outlying-US(Guam-USVI-etc), India, Japan, Greece, South, China, Cuba, Iran,Honduras, Philippines, Italy, Poland, Jamaica, Vietnam, Mexico, Portugal,Ireland, France, Dominican-Republic, Laos, Ecuador, Taiwan, Haiti, Columbia,Hungary, Guatemala, Nicaragua, Scotland, Thailand, Yugoslavia, El-Salvador,Trinadad&Tobago, Peru, Hong, Holand-Netherlands.
+
+* salary: salario del individuo (es nuestro target). Dos posibles valores: <=50k o >50k.
+
+## 1.1. Importancia y objetivos
+
+La idea general de nuestro trabajo es ver qué variables son más importantes para que un individuo gane más o menos de 50000 dólares anuales. Para ello, emplearemos modelos de regresión predictivos, así como tests chi-square, tras haber realizado previamente una visión general del conjunto de datos.
+
+Hemos de decir también que habrá algunas variables que descartaremos para la predicción, bien sea por ser redundantes, o bien porque pueden tomar muchos valores diferentes que dificultan considerablemente el análisis.
+
+# 2. Limpieza de datos
+
+Antes de comenzar con la limpieza, cargamos el conjunto de datos en formato CSV:
+
+```{r}
+# carga de los datos
+datos = read.csv("adult11.csv", header = TRUE)
+head(datos)
+```
+
+Podemos ahora ver los tipos de datos que tenemos. 
+
+```{r}
+# tipos de datos
+sapply(datos, function(x) class(x))
+```
+
+Quizá en algún momento necesitamos que la variable "salary" sea numérica en lugar de un factor, pero cuando lo necesitemos cambiaremos su tipo.
+
+## 2.1. Ceros y elementos vacíos
+
+Debemos ver si hay ahora algún valor vacío en nuestros datos:
+
+```{r}
+# valores vacíos
+sapply(datos, function(x) sum(is.na(x)))
+```
+
+También puede darse el caso en el que tengamos ceros que no tengan sentido. Por tanto, veamos cuáles son los atributos con ceros:
+
+```{r}
+# ceros
+sapply(datos, function(x) sum(x == "0"))
+```
+
+Tan solo tenemos ceros en dos atributos, correspondientes a las ganancias y pérdidas. Como tiene sentido que estos atributos tomen valores nulos, no debemos realizar ningún cambio en ellos.
+
+Además, viendo de forma general la base de datos, tenemos algunos valores desconocidos que son representados por signos de interrogación. Veámoslos:
+
+```{r}
+# interrogaciones
+sapply(datos, function(x) sum(x == "?"))
+```
+Esto quiere decir que hay valores desconocidos en los atributos correspondientes al país de origen, a la clase de trabajo que desempeñan y al trabajo concreto asociado al individuo. Como veremos más adelante, estos tres atributos no los vamos a usar, por lo que no debe ser preocupante: nos quedaremos tan solo con aquellos datos cuyo país de origen es Estados Unidos, y los atributos "workclass" y "occupation" no entrarán en nuestro análisis.
+
+## 2.2. Discretización
+
+Tanto la edad como el nivel educativo van a ser atributos importantes para nuestras predicciones. En cambio, tal y como están distribuidos no son útiles (toman demasiados valores diferentes), por lo que debemos proceder a su discretización. Ambas variables las discretizaremos para que tomen tan solo tres valores posibles.
+
+```{r}
+# cargamos la librería necesaria
+library(arules)
+
+# discretizamos por intervalos estos dos atributos
+datos$age.interval<-discretize(datos$age, method = "interval", categories = 3, labels=c("joven", "medio", "viejo"))
+datos$education.num<-discretize(datos$education.num, method = "interval", categories = 3, labels=c("bajo", "medio", "alto"))
+```
+
+## 2.3. Selección de valores de interés
+
+Como hemos dicho, hay algunos valores que no nos interesan. Como la base de datos es suficientemente grande, nos quedamos con los individuos nacidos en Estados Unidos, que representan a más del noventa porciento de la población. Además, eliminaremos de la base de datos la columna "native.country" una vez que nos hemos quedado solo con los estadounidenses, pues resulta redundante. También prescindiremos de las ganancias y pérdidas, pues muchos de estos valores son ceros.
+
+```{r}
+# nos quedamos solo con los de estados unidos
+data <- datos[datos$native.country == "United-States",]
+
+# quitamos la columna native.country
+data <- data[, -14]
+
+# y las columnas capital.gain
+data <- data[, -11]
+
+# y capital.loss
+data <- data[, -11]
+
+```
+
+## 2.4. Valores extremos
+
+Tiene también sentido ver qué valores se alejan mucho de la media. Esto lo haremos tan solo para las variables "fnlwgt", que indica a cuántos individuos representa la información de un individuo concreto, la variable "age" y "hours.per.week".
+
+```{r}
+# realizamos los boxplots
+boxplot(data$fnlwgt, horizontal = TRUE)
+
+# vemos cuántos valores se quedan fuera (valores extremos)
+length(boxplot.stats(data$fnlwgt)$out)
+```
+
+Hay 1298 valores que se alejan bastante de la media, pero todos estos valores son razonables, pues la variable indica cuántos ciudadanos representa cada individuo. Vemos ahora el boxplot para la edad:
+
+```{r}
+# edad
+boxplot(data$age, horizontal = TRUE)
+
+# vemos cuántos se han quedado fuera
+length(boxplot.stats(data$age)$out)
+```
+
+A pesar de que hay 192 datos que se alejan considerablemente de la media, son valores inferiores a 100, y no hay ninguno negativo. Por tanto, teniendo en cuenta la variable que estamos visualizando (edad de los individuos) no debemos realizar ningún cambio en ella. Veamos ahora las horas semanales trabajadas:
+
+```{r}
+# horas semanales trabajadas
+boxplot(data$hours.per.week, horizontal = TRUE)
+
+# veamos cuántos datos se desvían considerablemente de la media
+length(boxplot.stats(data$hours.per.week)$out)
+```
+
+Este boxplot es el que más valores alejados de la media presenta. Vemos que la media de horas trabajadas a la semana se sitúa en 40, pero tenemos valores que oscilan desde las 0 horas hasta las 100. Es posible que tengamos individuos con casi 100 horas trabajadas a la semana (autónomos o propietarios de negocios que abran todos los días), por lo que no es conveniente modificar estos datos.
+
+## 2.5. Exportación de los datos procesados
+
+Una vez que hemos realizado el proceso de limpieza de datos sobre los datos iniciales, guardaremos en un nuevo archivo los datos modificados:
+
+```{r}
+# exportación de los datos limpios como csv
+write.csv(data, "adult_data_clean.csv")
+```
+
+# 3. Análisis de los datos
+
+A continuación, seleccionamos los grupos dentro de nuestra base de datos que pueden ser utilizados para analizar o compararlos entre sí. Quizá no los usemos todos, pero es conveniente realizarlo para tener una visión más general de la base de datos:
+
+```{r}
+# grupos de datos:
+
+# sexo femenino y masculino:
+data.Male <- data[data$gender == "Male",]
+data.Female <- data[data$gender == "Female",]
+
+# diferentes razas:
+data.Black <- data[data$race == "Black",]
+data.White <- data[data$race == "White",]
+data.AIE <- data[data$race == "Amer-Indian-Eskimo",]
+data.API <- data[data$race == "Asian-Pac-Islander",]
+data.Other <- data[data$race == "Other",]
+
+# rangos de edad:
+data.Joven <- data[data$age.interval == "joven",]
+data.Medio <- data[data$age.interval == "medio",]
+data.Viejo <- data[data$age.interval == "viejo",]
+
+# nivel de educación:
+data.ed1 <- data[data$education.num == "bajo",]
+data.ed2 <- data[data$education.num == "medio",]
+data.ed3 <- data[data$education.num == "alto",]
+```
+
+## 3.1. Revisión de datos normalizados
+
+Para revisar si las variables pueden ser candidatas a la normalización miramos las graficas de quantile-quantile
+plot y el histograma.
+
+```{r}
+# veamos primero la variable "fnlwgt"
+par(mfrow=c(1,2))
+{qqnorm(data[,"fnlwgt"],main = paste("Normal Q-Q Plot for fnlwgt"))
+qqline(data[,"fnlwgt"],col="red")}
+
+hist(data[,"fnlwgt"], main=paste("Histogram for fnlwgt"), xlab=colnames(data)["fnlwgt"], freq = FALSE)
+ks.test(x=data[,"fnlwgt"],y='pnorm',alternative='two.sided')
+```
+
+```{r}
+# veamos la variale "age"
+par(mfrow=c(1,2))
+{qqnorm(data[,"age"],main = paste("Normal Q-Q Plot for age"))
+qqline(data[,"age"],col="red")}
+
+hist(data[,"age"], main=paste("Histogram for age"), 
+xlab=colnames(data)["age"], freq = FALSE)
+ks.test(x=data[,"age"],y='pnorm',alternative='two.sided')
+```
+
+```{r}
+# y la variable horas trabajadas por semana
+par(mfrow=c(1,2))
+{qqnorm(data[,"hours.per.week"],main = paste("Normal Q-Q Plot for hours.per.week"))
+qqline(data[,"hours.per.week"],col="red")}
+
+hist(data[,"hours.per.week"], main=paste("Histogram for hours.per.week"), 
+xlab=colnames(data)["hours.per.week"], freq = FALSE)
+ks.test(x=data[,"hours.per.week"],y='pnorm',alternative='two.sided')
+```
+
+Los resultados nos indican, a priori,  que ninguna de las variables variables que tienen valores numéricos pueden ser candidatas a la normalización, pero como todas las observaciones cuentan con más de 30 elementos, podemos aproximarla como una distribución normal de media 0 y desviación estandard 1 por el teorema del límite central.
+
+Podemos ver ahora si las variables discretizadas están normalizadas con el test "fligner":
+
+```{r}
+# en primer lugar es necesario convertir como numérica la variable "salary"
+data["salary"] = lapply(data["salary"], as.numeric)
+
+# aplicamos el test a las cuatro variables cualitativas
+fligner.test(salary ~ gender, data = data)
+fligner.test(salary ~ race, data = data)
+fligner.test(salary ~ age, data = data)
+fligner.test(salary ~ education.num, data = data)
+```
+
+Puesto que obtenemos un p-valor inferior a $0.05$, rechazamos la hipótesis de que las varianzas de ambas muestras son homogéneas para todas las parejas de variables.
+
+## 3.2. Análisis de las variables discretizadas
+
+Tenemos un total de cuatro variables discretizadas: género, raza, intervalo de edad y nivel educativo. Veamos una representación de cada una de estas variables en función del salario para saber si éste es un factor clave. Además, realizando un test chi cuadrado confirmaremos la tendencia descrita en la representación. En caso de que alguna variable condicione el salario, podremos ver el valor del odds ratio, que lo definiremos más adelante.
+
+En primer lugar, representaremos la variable "gender":
+
+```{r}
+# cargamos las librerías necesarias para la representación:
+library(ggplot2)
+library(cowplot)
+# cambiamos a factor la columna "salary":
+data["salary"] = lapply(data["salary"], as.factor)
+
+# representación de los datos sin normalizar:
+gen=ggplot(data, aes(x=gender,fill=salary))+geom_bar()
+
+# representación de los datos normalizados:
+gen_n=ggplot(data,aes(x=gender,fill=salary))+geom_bar(position="fill")
+
+# veamos ambas:
+plot_grid(gen, gen_n)
+```
+
+Como se puede observar, el sexo biológico es un factor bastante influyente para que el salario esté por encima (rojo) o por debajo (azul) de 50k dólares anuales. Veamos el test chi:
+
+
+```{r}
+# creamos la tabla:
+stgen <-table(data$salary, data$gender)
+
+# le realizamos el test a la tabla:
+chisq.test(stgen, 95)
+```
+
+Como el valor de $p$ está por debajo del límite $0.05$, rechazamos la hipótesis nula y podemos decir que la variable "gender" es un factor clave para que el sueldo sea alto o bajo para un individuo. Podemos ver el odds ratio:
+
+```{r}
+library(questionr)
+odds.ratio(stgen)
+```
+
+Este valor, en términos generales, se define como la probabilidad que una condición se presente en un individuo (por ejemplo, que el sueldo sea alto) frente al riesgo que ocurra otra (que el sexo biológico sea femenino o masculino). El valor de referencia para el Odd Ratio es “1”, puesto que valores por debajo del mismo (hasta cero) indican que la asociación entre las variables estudiadas es negativa, y valores por encima de éste (hasta infinito) indican que la asociación es positiva. En nuestro caso, tenemos OR = 3.6325, lo cual quiere decir que la probabilidad de que un hombre tenga un sueldo superior a 50k anuales es 3.6325 veces la de que una mujer lo tenga.
+
+Hacemos lo propio con las razas de los individuos (variable race):
+
+```{r}
+# distribución sin normalizar
+rac=ggplot(data, aes(x=race,fill=salary))+geom_bar()
+
+# distribución normalizada
+rac_n=ggplot(data,aes(x=race,fill=salary))+geom_bar(position="fill")
+
+# vemos ambas representaciones
+plot_grid(rac, rac_n)
+```
+
+Vemos que la mayoría de datos se corresponden a las razas blanca y negra (lo cual tiene sentido porque nos hemos quedado solo con los individuos de origen estadounidense). Por tanto, no es muy descriptivo mezclar otras razas debido a que el conjunto representado por ellas es mínimo. Veamos el mismo gráfico pero solo para razas negra y blanca:
+
+```{r}
+# cogemos solo los datos de razas blanca y negra:
+datosraza <- rbind(data.Black, data.White)
+datosraza$race <- as.factor(as.character(datosraza$race))
+datosraza["salary"] = lapply(datosraza["salary"], as.factor)
+
+# distribución sin normalizar
+rac2=ggplot(datosraza, aes(x=race,fill=salary))+geom_bar()
+
+# distribución normalizada
+rac2_n=ggplot(datosraza,aes(x=race,fill=salary))+geom_bar(position="fill")
+
+# vemos ambas representaciones
+plot_grid(rac2, rac2_n)
+```
+
+Podemos hacer el test chi cuadrado y calcular el valor del odds ratio:
+
+```{r}
+# tabla de contingencia
+strac <-table(datosraza$salary, datosraza$race)
+strac
+
+# test chi square
+chisq.test(strac, 95)
+```
+
+Como el valor de $p$ está por debajo del límite $0.05$ rechazamos la hipótesis nula y podemos decir que la variable "race" es un factor clave para que el sueldo sea alto o bajo para un individuo. Podemos ver el odds ratio:
+
+```{r}
+# odds ratio
+odds.ratio(strac)
+```
+
+Nos ha salido un OR = 2.55 aproximadamente. Esto quiere decir que la probabilidad de tener un sueldo por encima de 50k anuales es 2.55 veces mayor en los hombres de raza blanca que negra.
+
+Podemos ver ahora la distribución de la variable "salary" dependiendo de la edad de los individuos:
+
+```{r}
+# datos sin normalizar (age.interval)
+agi=ggplot(data, aes(x=age.interval,fill=salary))+geom_bar()
+
+# datos normalizados (age.interval)
+agi_n=ggplot(data,aes(x=age.interval,fill=salary))+geom_bar(position="fill")
+
+# representación conjunta
+plot_grid(agi, agi_n)
+```
+
+La edad, como vemos en el gráfico anterior, también es un factor clave para el hecho de ganar más o menos de 50k dólares anuales. Lo podemos certificar con el test chi cuadrado:
+
+```{r}
+# tabla para age.interval
+stagi <-table(data$salary, data$age.interval)
+
+# test chi square
+chisq.test(stagi, 95)
+```
+
+Como el valor de $p$ está por debajo del límite $0.05$, rechazamos la hipótesis nula y podemos decir que la variable "age.interval" es un factor clave para que el sueldo sea alto o bajo para un individuo. El odds ratio solo tiene sentido si la tabla de contingencia es 2x2, por lo que no lo calcularemos. De todos modos, con la gráfica anterior y el valor de $p$ queda suficientemente contrastada nuestra hipótesis.
+
+Por último, podemos hacer lo propio para el nivel educativo (education.number):
+
+```{r}
+# education.number en función del salario
+edn=ggplot(data, aes(x=education.num,fill=salary))+geom_bar()
+
+# education.number normalizado en función del salario
+edn_n=ggplot(data,aes(x=education.num,fill=salary))+geom_bar(position="fill")
+
+# representación conjunta
+plot_grid(edn, edn_n)
+```
+
+Las diferencias son claras: la proporción de sueldos por encima de 50k es mucho mayor cuanto mayor es el nivel educativo. Comprobémoslo con el valor de $p$:
+
+```{r}
+# tabla de contingencia:
+stedn <-table(data$salary, data$education.num)
+
+# test chi square:
+chisq.test(stedn, 95)
+```
+
+Como el valor de $p$ está por debajo del límite $0.05$, rechazamos la hipótesis nula y podemos decir que la variable "education.number" es un factor clave para que el sueldo sea alto o bajo para un individuo. El odds ratio solo tiene sentido si la tabla de contingencia es 2x2, por lo que no lo calcularemos. De todos modos, con la gráfica anterior y el valor de $p$ queda suficientemente contrastada nuestra hipótesis.
+
+
+## 3.3. Análisis de las variables cuantitativas
+
+De forma análoga al anterior análisis, podemos ver la correlación entre la variable "salary" y variables cuantitativas sin discretizar, como "age", "hours.per.week" o "fnlwgt". En primer lugar, podemos ver los coeficientes de correlación:
+
+
+```{r}
+# cargamos la librería
+library(stats)
+data["salary"] = lapply(data["salary"], as.numeric)
+
+# calculamos los coeficientes
+cor(data$salary, data$age, method = "spearman")
+cor(data$salary, data$hours.per.week, method = "spearman")
+cor(data$salary, data$fnlwgt, method = "spearman")
+```
+
+En estos coeficientes, podemos observar que no hay demasiada correlación entre estas tres variables y el hecho de que el salario sea mayor o menor de 50k. Podemos también realizar scatter plots de estas variables para certificar la no correlación.
+
+
+```{r}
+# gráfica para los años
+plot(data$age, pch='*',col=c("blue", "yellow")[unclass(data$salary)], ylab = "edad", main = "Distribución de las edades en base al salario")
+```
+
+```{r}
+# gráfica para las horas trabajadas a la semana
+plot(data$hours.per.week, pch='*',col=c("blue", "yellow")[unclass(data$salary)], ylab = "horas a la semana trabajadas", main = "Distribución de las edades en base a las horas trabajadas a la semana")
+```
+
+```{r}
+# gráfica para la variable "fnlwgt"
+plot(data$fnlwgt, pch='*',col=c("blue", "yellow")[unclass(data$salary)], ylab = "fnlwgt", main = "Distribución de las edades en base al fnlwgt")
+```
+
+Vemos que las distribuciones de los dos posibles valores que puede tomar la variable "salary" (colores azul y amarillo) no siguen ningún patrón y están acordes a los coeficientes de correlación obtenidos.
+
+## 3.4. Contraste de las variables cuantitativas
+
+Podemos realizar para las variables cuantitativas la prueba t-student (t.test), la cual es una prueba de contraste paramétrica que se utiliza para comprobar la igualdad de las medias de dos muestras o una muestra. También para comprobar si la media de una muestra es igual a una media teórica determinada. Lo que haremos será dividir los datos de "age", "hours.per.week" y "fnlwgt" en dos, dependiendo de si su salario es mayor o menor de 50k. Tras ello, veremos las nuevas medias:
+
+En primer lugar, para la edad:
+
+```{r}
+# separamos los datos
+data.salary1.age <- data[data$salary == 1,]$age
+data.salary2.age <- data[data$salary == 2,]$age
+```
+
+Realizamos la prueba t-student:
+
+```{r}
+t.test(data.salary1.age, data.salary2.age, alternative = "less")
+```
+
+Vemos que la media de las edades de aquellas personas que ganan menos de 50k es de unos 37 años, mientras que la media de las edades de aquellos individuos cuyos sueldos están por encima de 50k anuales es de más de 44 años. Esta diferencia es considerable, lo cual se ve reflejado en el valor de $p$, que es menor del límite $0.05$, por lo que podemos decir que rechazamos la hipótesis nula. Por tanto, podemos concluir que, efectivamente, la edad media para quienes cobran más de 50k anuales es diferente (mayor) de la edad media de aquellos que cobran menos de 50k anuales.
+
+Hagamos lo propio para las horas trabajadas a la semana:
+
+```{r}
+# separamos los datos:
+data.salary1.hours.per.week <- data[data$salary == 1,]$hours.per.week
+data.salary2.hours.per.week <- data[data$salary == 2,]$hours.per.week
+```
+
+Realizamos el test t-student para las horas trabajadas a la semana:
+
+```{r}
+# test
+t.test(data.salary1.hours.per.week, data.salary2.hours.per.week, alternative = "less")
+```
+
+La media de las horas trabajadas para las personas que ganan menos de 50k es menor que la media de aquellos que ganan más (38.8 días a la semana frente a 45.5 días). Este resultado, aparte de tener bastante sentido, es acorde con el valor de $p$, que se sitúa por debajo de $0.05$, por lo que podemos decir que rechazamos la hipótesis nula. Por tanto, podemos concluir que, efectivamente, la media de las horas trabajadas para quienes cobran más de 50k anuales es diferente (mayor) de la media de aquellos que cobran menos de 50k anuales.
+
+Por último, veamos las medias de las personas que representa cada individuo. Debido a la la poca correlación esperamos que las medias sean muy parecidas:
+
+```{r}
+# separamos la base de datos:
+data.salary1.fnlwgt <- data[data$salary == 1,]$fnlwgt
+data.salary2.fnlwgt <- data[data$salary == 2,]$fnlwgt
+```
+
+Realizamos el test t-student:
+
+```{r}
+# test
+t.test(data.salary1.fnlwgt, data.salary2.fnlwgt, alternative = "less")
+```
+
+Vemos que las medias son muy parecidas: ambas están por encima de 12000 personas y por debajo de 13000. El valor de $p = 0.1376$ está por encima del límite fijado ($0.05$), por lo que no podemos rechazar la hipótesis nula: es decir, no podemos decir que las medias de las personas que representa cada individuo es diferente para las personas que tienen un sueldo superior a los 50k anuales de las que tienen un sueldo por debajo de esta cifra.
+
+Por último, podemos realizar análisis cruzados de otras variables, sin ligarlas necesariamente con la variable "salary", si esto nos interesa. Podemos ver que las variables "age", "hours.per.week" y "fnlwgt" no están prácticamente relacionadas entre sí, debido a los valores de los coeficientes de correlación que se muestran a continuación, lo cual nos aporta más información sobre la base de datos.
+
+```{r}
+# correlación entre las variables cuantitativas
+cor(data$age, data$hours.per.week, method = "spearman")
+cor(data$age, data$fnlwgt, method = "spearman")
+cor(data$fnlwgt, data$hours.per.week, method = "spearman")
+```
+
+## 3.3. Modelos de regresión logística y curva ROC
+
+Podemos estimar modelos de regresión logística tomando como variable dependiente el hecho de ganar más o menos de 50k anuales. En base a estos modelos, también podremos predecir qué factores o atributos son más decisivos para el valor de esta variable. Así, en primer lugar haremos un modelo tan solo con la variable "gender", y crearemos otros añadiendo el resto de variables discretizadas a éste (race, education.num y age.interval).
+
+```{r}
+data["salary"] = lapply(data["salary"], as.factor)
+
+# primer modelo
+mlog1.glm <- glm(salary ~ gender, data, family = "binomial")
+
+# segundo modelo
+mlog2.glm <- glm(salary ~ gender + race, data, family = "binomial")
+
+# tercer modelo
+mlog3.glm <- glm(salary ~ gender + education.num + race, data, family = "binomial")
+
+# cuarto modelo
+mlog4.glm <- glm(salary ~ age.interval + education.num + race + gender, data, family = "binomial")
+```
+
+Podemos extraer el coeficiente AIC de los modelos. Este coeficiente es una medida de la calidad relativa de un modelo estadístico para un conjunto dado de datos, y cuanto menor sea, más calidad tendrá nuestro modelo:
+
+```{r}
+# coeficientes de cada modelo
+extractAIC(mlog1.glm)[2]
+extractAIC(mlog2.glm)[2]
+extractAIC(mlog3.glm)[2]
+extractAIC(mlog4.glm)[2]
+```
+
+El coeficiente más bajo se corresponde con el cuarto modelo, por lo que nos quedaremos con éste como el que mejor predice la variable "salary".
+
+Podemos realizar el test de hoslem a nuestro modelo para ver si lo que observamos en nuestro modelo se ajusta a la realidad:
+
+```{r}
+# cargamos la librería
+library(ResourceSelection)
+
+# realizamos el test de hoslem a nuestro modelo
+hoslem.test(data$salary, fitted(mlog4.glm))
+```
+
+El valor de $p$ es muy pequeño. Esto quiere decir que no podemos afirmar que el modelo defina correctamente la realidad, debido a la variedad y diversidad de nuestros datos.
+
+Otra forma de medir la efectividad de nuestro modelo es por medio de la curva ROC: Lo que haremos por medio de ella es ver una representación gráfica de la sensibilidad frente a la especifidad de nuestro modelo. Así, cuanta mayor sea el área bajo nuestra curva ROC (desde 0 hasta 1), mejor será el ajuste del modelo.
+
+```{r}
+# cargamos la librería
+library(pROC)
+
+# creamos la curva y vemos el área bajo la curva
+resRoc <- roc(data$salary ~ fitted(mlog4.glm))
+resRoc
+```
+El área bajo la curva es 0.7746, lo cual quiere decir que el modelo ajusta notablemente la realidad. A pesar de ello, habrá muchos datos que no describa a la perfección. Veamos la representación de la curva:
+
+```{r}
+# representamos la cruva
+plot(resRoc, legacy.axes = TRUE, col='red', main= 'ROC curve')
+```
+
+Por último, podemos realizar una predicción para nuestro modelo. Veamos la probabilidad de ganar más de 50k en dos casos: en el primero, si el individuo es varón, su edad es media, su educación es alta y su raza blanca:
+
+```{r}
+# predicción
+data2 = data.frame(gender="Male", age.interval="medio", education.num = "alto", race = "White")
+predict(mlog4.glm, data2, type="response")
+```
+
+Nos sale que la probabilidad de ganar más de 50k es bastante alta (casi un setenta por ciento). Veamos ahora lo que sucede si nuestro individuo es mujer, su edad es elevada, su educación baja y su raza negra:
+
+```{r}
+data3 = data.frame(gender="Female", age.interval="viejo", education.num = "bajo", race = "Black")
+predict(mlog4.glm, data3, type="response")
+```
+
+Tenemos que la probabilidad de ganar más de 50k anuales es menor del 1 %. Estos dos resultados son acorde con las gráficas expuestas anteriormente.
+
+
+## 3.6. Conclusión
+
+En primer lugar, tras haber descrito los datos y visto los principales objetivos de esta práctica, se ha procedido a la limpieza  de datos: hemos observado que no hay valores vacíos, y que los signos de interrogación que salían y los valores nulos no era necesario modificarlos; bien porque eran valores correctos, bien porque las variables a las que correspondían iban a ser eliminadas. Además, hemos discretizado las variables "age" y "education.num" para tener valores más cómodos y útiles en nuestros modelos. Como última parte de la limpieza de datos, hemos eliminado columnas que no íbamos a utilizar, nos hemos quedado solo con los individuos cuyo país de origen es Estados Unidos, y hemos observado que todos los valores extremos eran razonables, por lo que no debíamos eliminar datos.
+
+La parte fundamental de la práctica la ocupa el análisis de datos:
+
+* Primero hemos revisado los datos normalizados, donde los resultados nos indican que todas las variables que tienen valores numéricos pueden ser candidatas a la normalización. Además, con el test Fligner hemos certificado que ninguna variable está normalizada, pero que como todas las observaciones cuentan con más de 30 elementos, podemos aproximarlas a una distribución normal.
+
+* En segundo lugar, hemos realizado un análisis de las variables discretizadas "gender", "race", "age.interval" y "education.num". Tanto visualmente como por medio del valor $p$ del test $chi$ $square$, podemos afirmar que las cuatro variables influyen en el hecho de tener un salario por encima de 50k. Esto lo hemos certificado con los valores del odds ratio, con las siguientes conclusiones:
+
+La probabilidad de que un hombre tenga un sueldo superior a 50k anuales es 3.6325 veces la de que una mujer lo tenga.
+
+La probabilidad de tener un sueldo por encima de 50k anuales es 2.55 veces mayor en los hombres de raza blanca que negra.
+
+* En tercer lugar, hemos realiazado modelos de regresión logística y representado la curva ROC, con los siguientes resultados: el modelo que mejor ajusta los datos es aquél que tiene en cuenta las cuatro variables discretizadas. Además, el área bajo la curva ROC para este modelo es $0.7746$. También hemos realizado las siguientes predicciones:
+
+La probabilidad de ganar más de 50k  si el individuo es varón, su edad es media, su educación es alta y su raza blanca es $0.6794$.
+
+La probabilidad de ganar más de 50k anuales si el individuo es mujer, su edad es elevada, su educación baja y su raza negra es $0.00834$.
+
+* En cuarto lugar, hemos representado la distribución de los salarios en función de los valores que toman nuestras tres variables cuantitativas: "age", "hours.per.week" y "fnlwgt", llegando a la conclusión de que las distribuciones de los dos posibles valores que puede tomar la variable “salary” (colores azul y amarillo) no siguen ningún patrón y están acordes a los coeficientes de correlación obtenidos.
+
+* En quinto y último lugar, hemos realizado para estas variables cuantitativas la prueba t-student (t.test), para comprobar la igualdad o no de sus medias para salarios por encima o por debajo de 50k. La media de las edades de aquellas personas que ganan menos de 50k es de unos 37 años, mientras que la media de las edades de aquellos individuos cuyos sueldos están por encima de 50k anuales es de más de 44 años. También encontramos diferencias significativas en la variable "hours.per.week": la media de las horas trabajadas para las personas que ganan menos de 50k es menor que la media de aquellos que ganan más (38.8 días a la semana frente a 45.5 días). Estas diferencias la certifican los valores de $p$ de la prueba. En cambio, para la variable "fnlwgt" no encontramos diferencias significativas entre estas medias: obtenemos $p=0.1376$, que está por encima del límite fijado (0.05), por lo que no podemos decir que las medias de las personas que representa cada individuo es diferente para las personas que tienen un sueldo superior a los 50k anuales de las que tienen un sueldo por debajo de esta cifra.
